@@ -21,9 +21,18 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/captureImgBtn"
-        android:text="Capture Imgae"
+        android:text="Capture Image"
         android:backgroundTint="@color/green"
         android:layout_marginTop="12dp"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/pickFromGalleryBtn"
+        android:text="Pick from Gallery"
+        android:backgroundTint="@color/green"
+        android:layout_marginTop="12dp"/>
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

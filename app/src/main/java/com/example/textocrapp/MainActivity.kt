@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.os.Environment
 import android.text.method.ScrollingMovementMethod
-import android.view.inputmethod.TextBoundsInfoResult
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -30,51 +29,72 @@ import java.util.Locale
 import android.Manifest
 import android.net.Uri
 
-
 class MainActivity : AppCompatActivity() {
 
     private lateinit var cameraImage: ImageView
     private lateinit var captureImgBtn: Button
+    private lateinit var pickFromGalleryBtn: Button // New button for gallery
     private lateinit var resultText: TextView
     private lateinit var copyTextBtn: Button
 
     private var currentPhotoPath: String? = null
-    private lateinit var  requestPermissionLauncher: ActivityResultLauncher<String>
+    private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var takePictureLauncher: ActivityResultLauncher<Uri>
+    private lateinit var pickImageLauncher: ActivityResultLauncher<String> // New launcher for gallery
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         cameraImage = findViewById(R.id.cameraImage)
-        captureImgBtn= findViewById(R.id.captureImgBtn)
+        captureImgBtn = findViewById(R.id.captureImgBtn)
+        pickFromGalleryBtn = findViewById(R.id.pickFromGalleryBtn) // New button ID
         resultText = findViewById(R.id.resultText)
         copyTextBtn = findViewById(R.id.copyTextBtn)
 
-        requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()){
-            isGranted ->
-            if(isGranted) {
+        // Initialize permission launcher
+        requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
                 captureImage()
             } else {
-                Toast.makeText(this , "Camera permission denied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
             }
         }
 
-        takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) {
-            success ->
-            if (success){
+        // Initialize camera launcher
+        takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            if (success) {
                 currentPhotoPath?.let { path ->
                     val bitmap = BitmapFactory.decodeFile(path)
                     cameraImage.setImageBitmap(bitmap)
-                    recognizeText((bitmap))
+                    recognizeText(bitmap)
                 }
             }
         }
 
+        // Initialize gallery launcher
+        pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let { imageUri ->
+                try {
+                    val inputStream = contentResolver.openInputStream(imageUri)
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    cameraImage.setImageURI(imageUri) // Display the gallery image
+                    recognizeText(bitmap)
+                    inputStream?.close()
+                } catch (e: IOException) {
+                    Toast.makeText(this, "Error loading image: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            } ?: Toast.makeText(this, "No image selected", Toast.LENGTH_SHORT).show()
+        }
+
+        // Set click listeners
         captureImgBtn.setOnClickListener {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
 
+        pickFromGalleryBtn.setOnClickListener {
+            pickImageLauncher.launch("image/*") // Launch gallery intent
+        }
     }
 
     private fun createImageFile(): File {
@@ -85,24 +105,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
-
-
     private fun captureImage() {
         val photoFile: File? = try {
             createImageFile()
         } catch (ex: IOException) {
-            Toast.makeText(this, "Error while create file", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Error while creating file", Toast.LENGTH_SHORT).show()
             null
         }
         photoFile?.also {
-            val photoUri =
-                FileProvider.getUriForFile(this, "${applicationContext.packageName}.provider", it)
+            val photoUri = FileProvider.getUriForFile(this, "${applicationContext.packageName}.provider", it)
             takePictureLauncher.launch(photoUri)
         }
     }
 
-    private fun recognizeText(bitmap: Bitmap){
+    private fun recognizeText(bitmap: Bitmap) {
         val image = InputImage.fromBitmap(bitmap, 0)
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
@@ -110,15 +126,14 @@ class MainActivity : AppCompatActivity() {
             resultText.text = ocrText.text
             resultText.movementMethod = ScrollingMovementMethod()
             copyTextBtn.visibility = Button.VISIBLE
-            copyTextBtn.setOnClickListener{
-                val clipboard = ContextCompat.getSystemService(this ,android.content.ClipboardManager::class.java)
-                val clip = android.content.ClipData.newPlainText("recognized test", ocrText.text)
+            copyTextBtn.setOnClickListener {
+                val clipboard = ContextCompat.getSystemService(this, android.content.ClipboardManager::class.java)
+                val clip = android.content.ClipData.newPlainText("recognized text", ocrText.text)
                 clipboard?.setPrimaryClip(clip)
-                Toast.makeText(this ,"Text coppied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Text copied", Toast.LENGTH_SHORT).show()
             }
-
         }.addOnFailureListener { e ->
-            Toast.makeText(this, "Failed to recognize text:${e.message}" , Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Failed to recognize text: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }
